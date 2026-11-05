@@ -39,7 +39,45 @@ FOR EACH ROW
 EXECUTE FUNCTION verify_container_is_stored();
 
 
---1. Deletion and Updating WILL threaten illegal state cuz technically in this case:
--- container - A    stored_at - A  loaded_on - NULL   
--- then we do DELETE FROM stored_at WHERE iso_6346 = 'A';   this will violate cuz A is in neither location but still exist. So its possible to do two separate constraint trigger on loaded and stored
---2. NEW.iso_6346 can just not exist where the container is NULL right.....? we can do a separate var like c in container where c.iso = NEW.iso.
+-- -- Lifan: i think this implementation is better: BEGIN
+--     IF TG_OP = 'INSERT' THEN
+--         IF EXISTS (
+--             SELECT 1 FROM container c
+--             WHERE c.iso_6346 = NEW.iso_6346
+--         )
+--         AND NOT EXISTS (
+--             SELECT 1 FROM stored_at s
+--             WHERE s.iso_6346 = NEW.iso_6346
+--         )
+--         AND NOT EXISTS (
+--             SELECT 1 FROM loaded_on l
+--             WHERE l.iso_6346 = NEW.iso_6346
+--         ) THEN
+--             RAISE EXCEPTION 'Container is neither on a ship nor in a yard';
+--         END IF;
+
+--     ELSE
+--         IF EXISTS (
+--             SELECT 1 FROM container c
+--             WHERE c.iso_6346 = OLD.iso_6346
+--         )
+--         AND NOT EXISTS (
+--             SELECT 1 FROM stored_at s
+--             WHERE s.iso_6346 = OLD.iso_6346
+--         )
+--         AND NOT EXISTS (
+--             SELECT 1 FROM loaded_on l
+--             WHERE l.iso_6346 = OLD.iso_6346
+--         ) THEN
+--             RAISE EXCEPTION 'Container is neither on a ship nor in a yard';
+--         END IF;
+--     END IF;
+-- I think we need to distinguish INSERT from UPDATE/DELETE.
+-- For INSERT on container, checking NEW.iso_6346 is correct.
+-- However, for UPDATE on stored_at or loaded_on, we should check
+-- OLD.iso_6346 instead, since the previously referenced container
+-- may lose its only location. Checking NEW.iso_6346 would miss this.
+--
+-- Also, since the triggers are deferred, the container may have been
+-- deleted later in the same transaction. We should first check whether
+-- it still exists in container before raising an exception.
