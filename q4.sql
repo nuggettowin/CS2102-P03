@@ -52,9 +52,29 @@ $$
 LANGUAGE plpgsql;
 
 
-CREATE CONSTRAINT TRIGGER on_stored_at_loc_modifed
+CREATE CONSTRAINT TRIGGER on_stored_at_loc_modified
 AFTER INSERT OR DELETE OR UPDATE ON stored_at
 DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW
 EXECUTE FUNCTION verify_consecutive_containers();
 
+
+--Lifan: In current implementation, this would be rejected: inserting tier 2, removing tier 2 and tier 1. the queued tier-2 insertion check will find no tier-1 support and incorrectly reject the transaction.
+--My proposed sol: BEGIN
+--     IF EXISTS (
+--         SELECT 1
+--         FROM stored_at s
+--         WHERE s.tier > 1
+--           AND NOT has_matching_stored_at(
+--               s.bay,
+--               s.row,
+--               s.tier - 1,
+--               s.code
+--           )
+--     ) THEN
+--         RAISE EXCEPTION
+--             'Container in a yard must be on the ground or supported by another container';
+--     END IF;
+
+--     RETURN NULL;
+-- END;
