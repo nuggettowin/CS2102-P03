@@ -35,12 +35,9 @@ AFTER INSERT OR UPDATE ON loaded_on
 DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW
 EXECUTE FUNCTION verify_container_not_both();
---Lifan: 1. we dont need delete in Q2 right, technically when we delete its impossible to cause a container to be on both.
--- 2. is the first part equivalent using a two table JOIN?  or maybe im trippin
--- IF EXISTS (
---     SELECT 1
---     FROM stored_at s, loaded_on l
---     WHERE s.iso_6346 = l.iso_6346
--- ) THEN
---     RAISE EXCEPTION 'Container cannot be both on a ship and in a yard';
--- END IF;
+
+-- Lifan: The first trigger is redundant.
+-- AFTER INSERT ON container is unnecessary because inserting
+-- a container alone cannot cause it to appear in both tables.
+-- DELETE triggers are also unnecessary since deleting a location
+-- cannot introduce simultaneous membership in both tables.
